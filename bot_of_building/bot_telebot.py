@@ -14,6 +14,7 @@ import json
 from time import sleep
 from typing import List, Dict
 from dotenv import load_dotenv
+import re
 
 load_dotenv()
 
@@ -39,7 +40,7 @@ def save_data(message):
             bot.send_message(message.chat.id, "<i><b>Произошла ошибка при сохранении! Попробуй ещё раз♻️!</b></i>", parse_mode="HTML")
 
 def get_command() -> List:
-    return ["Приветствие🙌", "Профиль👤", "Время⌛", "Изменить возраст👴 и город🌃", "Получить ежедневную награду💲", "Обменник коинов💱", "Информация в DOCX📋", "Выход🚪"]
+    return ["Приветствие🙌", "Профиль👤", "Время⌛", "Изменить возраст👴 и город🌃", "Получить ежедневную награду💲", "Обменник коинов💱", "Информация в DOCX📋", "Отправить сообщение на адрес📧", "Выход🚪"]
 
 def get_shop_items() -> List:
     return [
@@ -49,6 +50,9 @@ def get_shop_items() -> List:
 
 def return_shop_items() -> Dict: 
     return {items["name"]: items["price"] for items in get_shop_items()}
+
+def valide_url(text : str) -> List:
+    return re.findall(r"[a-zA-Z0-9_@+-]+@[a-zA-Z0-9_+-]+\.(com|ru|by)", text)
 
 @bot.message_handler(commands=["help"])
 def help(message : Message):
@@ -70,6 +74,19 @@ def set(message: Message):
         bot.send_message(message.chat.id, "<i><b>Возраст должен быть числом/Недостаточно аргументов в строке(Должно!!!: /set возраст город)!</b></i>", parse_mode="HTML")
     else:
         bot.send_message(message.chat.id, "<i><b>Успешно изменён профиль!</b></i>", parse_mode="HTML")
+
+@bot.message_handler(commands=["send_text"])
+def send_text(message : Message):
+    text = message.text.split()
+
+    if len(text) < 4:
+        bot.send_message(message.chat.id, "<i><b>Недостаточно аргументов в строке! Надо так(пример):\n/send_text vasyapupkin2@gmail.com moidrug4@gmail.com Привет, дружище!</b></i>", parse_mode="HTML")
+    else:
+        seacrh_url = valide_url(f"{text[1]} {text[2]}")
+        seacrh_text = " ".join(text[3:])
+
+        if len(seacrh_url) < 2:
+            bot.send_message(message.chat.id, "<i><b>Невалидный(-ые) адрес(-а) эл. почты! Попробуй заново ввести по шаблону(/send_text vasyapupkin2@gmail.com moidrug4@gmail.com Привет, дружище!)ю</b></i>", parse_mode="HTML")
 
 @bot.message_handler()
 def start(message : Message):
@@ -186,6 +203,9 @@ def action_for_keyboard(callback):
         except Exception:
             bot.send_message(callback.message.chat.id, "<i><b>Произошла ошибка! Возможно, что неккоректный путь/файл не существует.</b></i>")
 
+    elif callback.data == command[7]:
+        bot.send_message(callback.message.chat.id, "<i><b>Напиши на следуйщей строке команду /send_text, свой адрес, адрес получателя и текст получателю(пример:/send_text vasyapupkin2@gmail.com moidrug4@gmail.com Привет, дружище!)</b></i>", parse_mode="HTML")
+
     elif callback.data == "Выйти":
         bot.edit_message_reply_markup(
             chat_id=callback.message.chat.id,
@@ -195,7 +215,7 @@ def action_for_keyboard(callback):
 
         bot.delete_message(callback.message.chat.id, callback.message.message_id)
 
-    elif callback.data == command[7]:
+    elif callback.data == command[8]:
         bot.edit_message_reply_markup(
                 chat_id=callback.message.chat.id,
                 message_id=callback.message.message_id,
