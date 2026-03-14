@@ -15,45 +15,69 @@ from time import sleep
 from typing import List, Dict
 from dotenv import load_dotenv
 import re
+from webdriverAction import get_element, get_weather
 
 load_dotenv()
 
 TOKEN = os.getenv("TOKEN_ANYbot")
+WEATHER_KEY = os.getenv("WEATHERKEY")
 BASE_DIR = Path(__file__).resolve().parent
 JSON_USERS = BASE_DIR / "users_profile.json"
+JSON_SEND = BASE_DIR / "user_send.json"
 DOCUMENT_FILES = BASE_DIR / "docs"
 
 bot = TeleBot(TOKEN)
+
+action_Element = get_element()
+
 state = {"starting": True}
-
+# проверяем на существования файла user_profile.json и открываем его.
 if os.path.exists(JSON_USERS):
-    with open(JSON_USERS, "r", encoding="utf-8") as file:
-        json_data = json.load(file)
+    with open(JSON_USERS, "r", encoding="utf-8") as u_file:
+        user_data = json.load(u_file)
 else:
-    json_data = {}
-
-def save_data(message):
-    with open(JSON_USERS, "w", encoding="utf-8") as file:
+    user_data = dict()
+# проверяем на существования файла user_send.json и открываем его.
+if os.path.exists(JSON_SEND):
+    with open(JSON_SEND, "r", encoding="utf-8") as s_file:
+        send_data = json.load(s_file)
+else:
+    send_data = dict()
+# сохраняем данные в JSON файл.
+def save_data(message, name_json, name_object):
+    with open(name_json, "w", encoding="utf-8") as file:
         try:
-            json.dump(json_data, file, ensure_ascii=False, indent=4)
+            json.dump(name_object, file, ensure_ascii=False, indent=4)
         except Exception:
             bot.send_message(message.chat.id, "<i><b>Произошла ошибка при сохранении! Попробуй ещё раз♻️!</b></i>", parse_mode="HTML")
-
-def get_command() -> List:
-    return ["Приветствие🙌", "Профиль👤", "Время⌛", "Изменить возраст👴 и город🌃", "Получить ежедневную награду💲", "Обменник коинов💱", "Информация в DOCX📋", "Отправить сообщение на адрес📧", "Выход🚪"]
-
+# список комманд.
+def get_command() -> List[str]:
+    return [
+            "Приветствие🙌", 
+            "Профиль👤", 
+            "Время⌛", 
+            "Изменить возраст👴 и город🌃", 
+            "Получить ежедневную награду💲", 
+            "Обменник коинов💱", 
+            "Информация в DOCX📋", 
+            "Отправить сообщение на адрес📧",
+            "Получить информацию с сайтаℹ️",
+            "Узнать погоду☔☀️",
+            "Выход🚪"
+            ]
+# предметы обменника коинов.
 def get_shop_items() -> List:
     return [
         {"name": "VIP🤑", "price": 500},
         {"name": "Photo📸", "price": 50}
     ]
-
+# возвращаем название предмета и его стоимость через генератор словарей.
 def return_shop_items() -> Dict: 
     return {items["name"]: items["price"] for items in get_shop_items()}
-
-def valide_url(text : str) -> List:
-    return re.findall(r"[a-zA-Z0-9_@+-]+@[a-zA-Z0-9_+-]+\.(com|ru|by)", text)
-
+# проверяем на валидность адрес.
+def valide_url(text : str) -> List[str]:
+    return re.findall(r"[a-zA-Z0-9\._%+-]+@[a-zA-Z0-9\.-]+\.(?:com|ru|by)", text)
+# показываем список комманд.
 @bot.message_handler(commands=["help"])
 def help(message : Message):
     markup = InlineKeyboardMarkup()
@@ -61,47 +85,71 @@ def help(message : Message):
     for s in command:
         markup.add(InlineKeyboardButton(s, callback_data=s))
     bot.send_message(message.chat.id, "<i><b>📋Список команд:</b></i>", parse_mode="HTML", reply_markup=markup)
+# показ прогноза погоды.
+@bot.message_handler(commands=["weather"])
+def weather(message : Message):
+    text = message.text.split(" ")
 
+    if len(text) < 2:
+        bot.send_message(message.chat.id, "Недостаточно аргументов в строке! Надо так: ```\n/weather название города```", parse_mode="Markdown")
+        return
+
+    seacrhing = get_weather(*text[1:], WEATHER_KEY)
+
+    bot.send_message(message.chat.id, seacrhing, parse_mode="HTML")
+# изменение возраста и города.
 @bot.message_handler(commands=["set"])
 def set(message: Message):
     text = message.text.split()
 
     try:
-        json_data[str(message.from_user.id)]["age"] = int(text[1]); json_data[str(message.from_user.id)]["city"] = text[2].title()
-        save_data(message)
+        user_data[str(message.from_user.id)]["age"] = int(text[1]); user_data[str(message.from_user.id)]["city"] = text[2].title()
+        save_data(message, JSON_USERS, user_data)
 
     except Exception:
         bot.send_message(message.chat.id, "<i><b>Возраст должен быть числом/Недостаточно аргументов в строке(Должно!!!: /set возраст город)!</b></i>", parse_mode="HTML")
     else:
         bot.send_message(message.chat.id, "<i><b>Успешно изменён профиль!</b></i>", parse_mode="HTML")
-
+# сбор и отправка через эл. почту форму.
 @bot.message_handler(commands=["send_text"])
 def send_text(message : Message):
     text = message.text.split()
 
     if len(text) < 4:
-        bot.send_message(message.chat.id, "<i><b>Недостаточно аргументов в строке! Надо так(пример):\n/send_text vasyapupkin2@gmail.com moidrug4@gmail.com Привет, дружище!</b></i>", parse_mode="HTML")
+        bot.send_message(message.chat.id, "<i><b>Недостаточно аргументов в строке! Надо так(пример):\n/send_text vasyapupkin2@gmail.com(от кого) moidrug4@gmail.com(кому) Привет, дружище!</b></i>", parse_mode="HTML")
     else:
-        seacrh_url = valide_url(f"{text[1]} {text[2]}")
-        seacrh_text = " ".join(text[3:])
+        search_text = " ".join(text[3:])
+        url_sender = text[1]
+        url_getter = text[2]
 
-        if len(seacrh_url) < 2:
-            bot.send_message(message.chat.id, "<i><b>Невалидный(-ые) адрес(-а) эл. почты! Попробуй заново ввести по шаблону(/send_text vasyapupkin2@gmail.com moidrug4@gmail.com Привет, дружище!)ю</b></i>", parse_mode="HTML")
-
+        if not valide_url(url_sender) or not valide_url(url_getter):
+            bot.send_message(message.chat.id, "<i><b>❌Невалидный адрес отправителя/получателя!\n"
+                             "Попробуй отправить заново.</b></i>",
+                             parse_mode="HTML")
+            return
+        
+        send_data[str(message.from_user.id)] = {
+            "from": url_sender,
+            "to": url_getter,
+            "text": search_text,
+            "ready": True
+        }
+        save_data(message, JSON_SEND, send_data)
+# хендлер при входе пользователя.
 @bot.message_handler()
 def start(message : Message):
     if state["starting"]:
         bot.send_message(message.chat.id, f"<i><b>Добро пожаловать {message.from_user.first_name}🙌! Я бот, написанный на telebot\n</b></i>", parse_mode="HTML")
         state["starting"] = False
 
-        if str(message.from_user.id) in json_data:
+        if str(message.from_user.id) in user_data:
             bot.send_message(message.chat.id, "<i><b>Вы вошли в профиль! Чтобы узнать список команд/повзаимодействовать со мной, нажми на /help</b></i>", parse_mode="HTML")
         else:
             bot.send_message(message.chat.id, "<i><b>Я создал твой профиль по умолчанию, где есть только имя.\nЧтобы изменить профиль по умолчанию, нажми /help, после нажми на Изменить возраст и город, и там будет следуйщий шаг.</b></i>", parse_mode="HTML")
 
-            json_data[str(message.from_user.id)] = {"name": message.from_user.first_name, "age": "не указан", "city": "не указан", "last_daily": str(datetime.datetime.now().date()), "coins": 0, "inventory": []}
-            save_data(message)
-
+            user_data[str(message.from_user.id)] = {"name": message.from_user.first_name, "age": "не указан", "city": "не указан", "last_daily": str(datetime.datetime.now().date()), "coins": 0, "inventory": []}
+            save_data(message, JSON_USERS, user_data)
+# обработчик событий.
 @bot.callback_query_handler()
 def action_for_keyboard(callback):
     command = get_command()
@@ -111,7 +159,7 @@ def action_for_keyboard(callback):
 
     elif callback.data == command[1]:
         try:
-            user = json_data[str(callback.from_user.id)]
+            user = user_data[str(callback.from_user.id)]
             name = user["name"]
             age = user["age"]
             city = user["city"]
@@ -119,7 +167,6 @@ def action_for_keyboard(callback):
 
         except Exception:
             bot.send_message(callback.message.chat.id, "<i><b>У тебя нет данных!</b></i>", parse_mode="HTML")
-            return
 
         bot.send_message(callback.message.chat.id, "<i><b>Твой профиль📇</b></i>\n"
                          f"<i><b>📛Имя: {name}</b></i>\n"
@@ -139,7 +186,7 @@ def action_for_keyboard(callback):
         bot.send_message(callback.message.chat.id, "<i><b>✍️Напиши на следуйщей строке /set возраст город(пример: /set 45 Париж)</b></i>", parse_mode="HTML")
 
     elif callback.data == command[4]:
-        user = json_data[str(callback.from_user.id)]
+        user = user_data[str(callback.from_user.id)]
         date_now = str(datetime.datetime.now().date())
 
         if user["last_daily"] == date_now:
@@ -149,7 +196,7 @@ def action_for_keyboard(callback):
 
             user["coins"] += coins
             user["last_daily"] = date_now
-            save_data(callback.message)
+            save_data(callback.message, JSON_USERS, user_data)
 
             bot.send_message(callback.message.chat.id, f"<i><b>Ты получил ежедневку: {coins} коинов💲!</b></i>", parse_mode="HTML")
 
@@ -163,7 +210,7 @@ def action_for_keyboard(callback):
         bot.send_message(callback.message.chat.id, "<i><b>Добро пожаловать в магазин🙌! Тут продаётся:</b></i>", parse_mode="HTML", reply_markup=markup)
     
     elif callback.data in return_shop_items():
-        user = json_data[str(callback.from_user.id)]
+        user = user_data[str(callback.from_user.id)]
         shop_items = return_shop_items()
 
         if callback.data in shop_items:
@@ -172,7 +219,7 @@ def action_for_keyboard(callback):
             if user["coins"] >= item_price and callback.data not in user["inventory"]:
                 user["coins"] -= item_price
                 user["inventory"].append(callback.data)
-                save_data(callback.message)
+                save_data(callback.message, JSON_USERS, user_data)
 
                 if callback.data == "Photo📸" and "Photo📸" not in user["inventory"]:
                     try:
@@ -206,6 +253,15 @@ def action_for_keyboard(callback):
     elif callback.data == command[7]:
         bot.send_message(callback.message.chat.id, "<i><b>Напиши на следуйщей строке команду /send_text, свой адрес, адрес получателя и текст получателю(пример:/send_text vasyapupkin2@gmail.com moidrug4@gmail.com Привет, дружище!)</b></i>", parse_mode="HTML")
 
+    elif callback.data == command[8]:
+        if action_Element is None:
+            bot.send_message(callback.message.chat.id, f"<i><b>Ещё загружаю элементы...</b></i>", parse_mode="HTML")
+        else:
+            bot.send_message(callback.message.chat.id, f"<i><b>{'\n'.join(action_Element)}</b></i>", parse_mode="HTML")
+
+    elif callback.data == command[9]:
+        bot.send_message(callback.message.chat.id, "<i><b>Напиши на следуйщей строке /weather название города(например: /weather Moscov)</b></i>", parse_mode="HTML")
+
     elif callback.data == "Выйти":
         bot.edit_message_reply_markup(
             chat_id=callback.message.chat.id,
@@ -215,7 +271,7 @@ def action_for_keyboard(callback):
 
         bot.delete_message(callback.message.chat.id, callback.message.message_id)
 
-    elif callback.data == command[8]:
+    elif callback.data == command[10]:
         bot.edit_message_reply_markup(
                 chat_id=callback.message.chat.id,
                 message_id=callback.message.message_id,
