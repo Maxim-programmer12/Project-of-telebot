@@ -15,7 +15,7 @@ from time import sleep
 from typing import List, Dict
 from dotenv import load_dotenv
 import re
-from webdriverAction import get_element, get_weather
+from action_parse import get_element, get_weather
 
 load_dotenv()
 
@@ -89,7 +89,7 @@ def help(message : Message):
 @bot.message_handler(chat_types=["private"], func=lambda m: m.entities is not None)
 def delete_links(message : Message):
     for entity in message.entities:
-        
+
         if entity.type in ("url", "text_link"):
             bot.delete_message(message.chat.id, message.message_id)
             break
