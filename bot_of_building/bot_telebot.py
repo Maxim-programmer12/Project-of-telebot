@@ -85,6 +85,14 @@ def help(message : Message):
     for s in command:
         markup.add(InlineKeyboardButton(s, callback_data=s))
     bot.send_message(message.chat.id, "<i><b>📋Список команд:</b></i>", parse_mode="HTML", reply_markup=markup)
+# антиспам ссылок.
+@bot.message_handler(chat_types=["private"], func=lambda m: m.entities is not None)
+def delete_links(message : Message):
+    for entity in message.entities:
+        
+        if entity.type in ("url", "text_link"):
+            bot.delete_message(message.chat.id, message.message_id)
+            break
 # показ прогноза погоды.
 @bot.message_handler(commands=["weather"])
 def weather(message : Message):
