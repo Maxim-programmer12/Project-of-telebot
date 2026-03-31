@@ -51,13 +51,13 @@ def get_element() -> List[str]:
 
     return list_element
 
-def get_weather(city : str, weather_api_key : str) -> str:
+def get_weather(weather_api_key : str) -> str:
 
-    url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={weather_api_key}&lang=ru&units=metric"
+    url = f"https://api.openweathermap.org/data/2.5/weather?q=Pruzhany&appid={weather_api_key}&lang=ru&units=metric"
     response = requests.get(url)
 
     if response.status_code != 200:
-        return "<i><b>Не найден город!</b></i>"
+        return "<i><b>Произошла ошибка при запросе!</b></i>"
     
     data = response.json()
 
@@ -78,4 +78,4 @@ def get_weather(city : str, weather_api_key : str) -> str:
 
 if __name__ == "__main__":
     print("\n".join(get_element()), "\n")
-    print(get_weather("Pruzhany", "a03dcebe024577bf9f0679a2805b1dbd"))
+    # print(get_weather())
