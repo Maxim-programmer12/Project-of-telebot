@@ -2,47 +2,55 @@ from telebot import TeleBot
 from telebot.types import (
                            Message,
                            InlineKeyboardMarkup,
-                           InlineKeyboardButton,
-                           ReplyKeyboardMarkup,
-                           ReplyKeyboardRemove,
-                           KeyboardButton
+                           InlineKeyboardButton
                            )
 import os
 from pathlib import Path
 import datetime
 import json
-from time import sleep
-from typing import List, Dict
+import db
+from typing import List
 from dotenv import load_dotenv
 import re
+import logging
 from action_parse import get_element, get_weather
 
 load_dotenv()
 
-TOKEN = os.getenv("TOKEN_ANYbot")
+TOKEN = os.getenv("TOKEN")
 WEATHER_KEY = os.getenv("WEATHERKEY")
 BASE_DIR = Path(__file__).resolve().parent
-JSON_USERS = BASE_DIR / "users_profile.json"
 JSON_SEND = BASE_DIR / "user_send.json"
 DOCUMENT_FILES = BASE_DIR / "docs"
+BELLS = DOCUMENT_FILES / "zvonki.txt"
+DB_PATH = BASE_DIR / "db.db"
+LOG_PATH = BASE_DIR / "logs.log"
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s, [%(levelname)s] %(name)s: %(message)s\n",
+    filename=LOG_PATH,
+    encoding="utf-8"
+)
+logger = logging.getLogger(__name__)
 
 bot = TeleBot(TOKEN)
 
 action_Element = get_element()
 
 state = {"starting": True}
-# проверяем на существования файла user_profile.json и открываем его.
-if os.path.exists(JSON_USERS):
-    with open(JSON_USERS, "r", encoding="utf-8") as u_file:
-        user_data = json.load(u_file)
-else:
-    user_data = dict()
 # проверяем на существования файла user_send.json и открываем его.
 if os.path.exists(JSON_SEND):
     with open(JSON_SEND, "r", encoding="utf-8") as s_file:
         send_data = json.load(s_file)
 else:
     send_data = dict()
+# открываем файл со звонками.
+if os.path.exists(BELLS):
+    with open(BELLS, "r", encoding="utf-8") as be_file:
+        bells = be_file.read()
+else:
+    bells = None
 # сохраняем данные в JSON файл.
 def save_data(message, name_json, name_object):
     with open(name_json, "w", encoding="utf-8") as file:
@@ -50,72 +58,58 @@ def save_data(message, name_json, name_object):
             json.dump(name_object, file, ensure_ascii=False, indent=4)
         except Exception:
             bot.send_message(message.chat.id, "<i><b>Произошла ошибка при сохранении! Попробуй ещё раз♻️!</b></i>", parse_mode="HTML")
-# список комманд.
-def get_command() -> List[str]:
+            logger.error("Ошибка при сохранении в JSON-файл!")
+# список главных комманд.
+def get_main_command() -> List[str]:
     return [
-            "Приветствие🙌", 
-            "Профиль👤", 
-            "Время⌛", 
-            "Изменить возраст👴 и город🌃", 
-            "Получить ежедневную награду💲", 
-            "Обменник коинов💱", 
-            "Информация в DOCX📋", 
-            "Отправить сообщение на адрес📧",
-            "Получить информацию с сайтаℹ️",
-            "Узнать погоду☔☀️",
+        "Личные данные💾",
+        "Информацияℹ️",
+        "Доп. функции✨",
+        "Выход🚪"
+    ]
+# список комманд номер 1.
+def get_command1() -> List[str]:
+    return [
+            "Профиль👤",
+            "Время⌛",
+            "Изменить возраст👴 и город🌃",
             "Выход🚪"
             ]
-# предметы обменника коинов.
-def get_shop_items() -> List:
+# список комманд номер 2.
+def get_command2() -> List[str]:
     return [
-        {"name": "VIP🤑", "price": 500},
-        {"name": "Photo📸", "price": 50}
+        "Информация в DOCX-файле📋",
+        "Отправить сообщение на адрес📩",
+        "Получить информацию с сайтаℹ️",
+        "Узнать погоду☔☀️",
+        "Звонки🔔",
+        "Выход🚪"
     ]
-# возвращаем название предмета и его стоимость через генератор словарей.
-def return_shop_items() -> Dict: 
-    return {items["name"]: items["price"] for items in get_shop_items()}
 # проверяем на валидность адрес.
 def valide_url(text : str) -> List[str]:
-    return re.findall(r"[a-zA-Z0-9\._%+-]+@[a-zA-Z0-9\.-]+\.(?:com|ru|by)", text)
+    return re.match(r"[a-zA-Z0-9\._%+-]+@[a-zA-Z0-9\.-]+\.(?:com|ru|by)", text)
 # показываем список комманд.
 @bot.message_handler(commands=["help"])
 def help(message : Message):
     markup = InlineKeyboardMarkup()
-    command = get_command()
+    command = get_main_command()
+
     for s in command:
         markup.add(InlineKeyboardButton(s, callback_data=s))
     bot.send_message(message.chat.id, "<i><b>📋Список команд:</b></i>", parse_mode="HTML", reply_markup=markup)
-# антиспам ссылок.
-@bot.message_handler(chat_types=["private"], func=lambda m: m.entities is not None)
-def delete_links(message : Message):
-    for entity in message.entities:
-
-        if entity.type in ("url", "text_link"):
-            bot.delete_message(message.chat.id, message.message_id)
-            break
-# показ прогноза погоды.
-@bot.message_handler(commands=["weather"])
-def weather(message : Message):
-    text = message.text.split(" ")
-
-    if len(text) < 2:
-        bot.send_message(message.chat.id, "Недостаточно аргументов в строке! Надо так: ```\n/weather название города```", parse_mode="Markdown")
-        return
-
-    seacrhing = get_weather(*text[1:], WEATHER_KEY)
-
-    bot.send_message(message.chat.id, seacrhing, parse_mode="HTML")
 # изменение возраста и города.
 @bot.message_handler(commands=["set"])
 def set(message: Message):
     text = message.text.split()
 
     try:
-        user_data[str(message.from_user.id)]["age"] = int(text[1]); user_data[str(message.from_user.id)]["city"] = text[2].title()
-        save_data(message, JSON_USERS, user_data)
+        age = text[1]
+        city = str(text[2])
+        db.set_age_city(message.from_user.id, age, city)
 
     except Exception:
         bot.send_message(message.chat.id, "<i><b>Возраст должен быть числом/Недостаточно аргументов в строке(Должно!!!: /set возраст город)!</b></i>", parse_mode="HTML")
+        logger.error(f"{message.from_user.first_name} написал недостаточно аргументов/возраст не числом в функцию /set.")
     else:
         bot.send_message(message.chat.id, "<i><b>Успешно изменён профиль!</b></i>", parse_mode="HTML")
 # сбор и отправка через эл. почту форму.
@@ -143,111 +137,90 @@ def send_text(message : Message):
             "ready": True
         }
         save_data(message, JSON_SEND, send_data)
+
+        logger.info(f"Пользователь {message.from_user.first_name} решил отправить сообщение.")
+# антиспам ссылок.
+@bot.message_handler(chat_types=["private"], func=lambda m: m.entities is not None)
+def delete_links(message : Message):
+    for entity in message.entities:
+
+        if entity.type in ("url", "text_link"):
+            bot.delete_message(message.chat.id, message.message_id)
+            break
 # хендлер при входе пользователя.
 @bot.message_handler()
 def start(message : Message):
     if state["starting"]:
+        if not os.path.exists(DB_PATH):
+            db.create_table()
+
         bot.send_message(message.chat.id, f"<i><b>Добро пожаловать {message.from_user.first_name}🙌! Я бот, написанный на telebot\n</b></i>", parse_mode="HTML")
         state["starting"] = False
 
-        if str(message.from_user.id) in user_data:
+        if message.from_user.id in db.get_users_id():
             bot.send_message(message.chat.id, "<i><b>Вы вошли в профиль! Чтобы узнать список команд/повзаимодействовать со мной, нажми на /help</b></i>", parse_mode="HTML")
-        else:
-            bot.send_message(message.chat.id, "<i><b>Я создал твой профиль по умолчанию, где есть только имя.\nЧтобы изменить профиль по умолчанию, нажми /help, после нажми на Изменить возраст и город, и там будет следуйщий шаг.</b></i>", parse_mode="HTML")
+            return
+        
+        reg_date = datetime.datetime.now().date()
+        parse_reg_date = datetime.datetime.strftime(reg_date, "%d.%m.%Y")
 
-            user_data[str(message.from_user.id)] = {"name": message.from_user.first_name, "age": "не указан", "city": "не указан", "last_daily": str(datetime.datetime.now().date()), "coins": 0, "inventory": []}
-            save_data(message, JSON_USERS, user_data)
+        db.insert_user(message.from_user.first_name, str(parse_reg_date), message.from_user.id)
+        bot.send_message(message.chat.id, "<i><b>Я создал твой профиль по умолчанию, где есть только имя.\nЧтобы изменить профиль по умолчанию, нажми /help, после нажми на Изменить возраст и город, и там будет следуйщий шаг.</b></i>", parse_mode="HTML")
+            
 # обработчик событий.
 @bot.callback_query_handler()
 def action_for_keyboard(callback):
-    command = get_command()
+    main_command = get_main_command()
+    command1 = get_command1()
+    command2 = get_command2()
 
-    if callback.data == command[0]:
-        bot.send_message(callback.message.chat.id, f"<i><b>Приветствую🙌, {callback.from_user.first_name}! Я бот, написанный на telebot.</b></i>", parse_mode="HTML")
+    if callback.data == main_command[0]:
+        markup = InlineKeyboardMarkup()
 
-    elif callback.data == command[1]:
+        for s in command1:
+            markup.add(InlineKeyboardButton(text=s, callback_data=s))
+        bot.send_message(callback.message.chat.id, "<i><b>---Функции по личным данным💾---</b></i>", parse_mode="HTML", reply_markup=markup)
+
+    elif callback.data == main_command[1]:
+        markup = InlineKeyboardMarkup()
+
+        for s in command2:
+            markup.add(InlineKeyboardButton(text=s, callback_data=s))
+        bot.send_message(callback.message.chat.id, "<i><b>---Информационные источникиℹ️---</b></i>", parse_mode="HTML", reply_markup=markup)
+
+    elif callback.data == main_command[2]:
+        bot.send_message(callback.message.chat.id, "<i><b>Функция на стадии разработки🛠️...</b></i>", parse_mode="HTML")
+
+    elif callback.data == command1[0]:
         try:
-            user = user_data[str(callback.from_user.id)]
-            name = user["name"]
-            age = user["age"]
-            city = user["city"]
-            coins = user["coins"]
+            list_info = db.get_all_user_info(callback.from_user.id)
 
         except Exception:
             bot.send_message(callback.message.chat.id, "<i><b>У тебя нет данных!</b></i>", parse_mode="HTML")
+            logger.error(f"У пользователя {callback.from_user.first_name} нет данных.")
+        
+        age = list_info[1]
+        city = list_info[2]
+        reg_date = list_info[3]
 
         bot.send_message(callback.message.chat.id, "<i><b>Твой профиль📇</b></i>\n"
-                         f"<i><b>📛Имя: {name}</b></i>\n"
+                         f"<i><b>📛Имя: {callback.from_user.first_name}</b></i>\n"
                          f"<i><b>👴Возраст: {age}</b></i>\n"
                          f"<i><b>🌃Город: {city}</b></i>\n"
-                         f"<i><b>🪙Коины: {coins}</b></i>",
+                         f"<i><b>🗓️Дата регестрации: {reg_date}</b></i>",
                          parse_mode="HTML"
                          )
 
-    elif callback.data == command[2]:
+    elif callback.data == command1[1]:
         now = datetime.datetime.now()
         parse_time = datetime.datetime.strftime(now, "%H:%M:%S")
         parse_date = datetime.datetime.strftime(now, "%d.%m.%Y")
         bot.send_message(callback.message.chat.id, f"<i><b>⌛Время сейчас: {parse_time}\n📆Дата: {parse_date}</b></i>", parse_mode="HTML")
 
-    elif callback.data == command[3]:
+    elif callback.data == command1[2]:
         bot.send_message(callback.message.chat.id, "<i><b>✍️Напиши на следуйщей строке /set возраст город(пример: /set 45 Париж)</b></i>", parse_mode="HTML")
 
-    elif callback.data == command[4]:
-        user = user_data[str(callback.from_user.id)]
-        date_now = str(datetime.datetime.now().date())
-
-        if user["last_daily"] == date_now:
-            bot.send_message(callback.message.chat.id, "<i><b>Ты уже получал награду💸, заходи завтра!</b></i>", parse_mode="HTML")
-        else:
-            coins = 150 if "VIP🤑" in user["inventory"] else 50
-
-            user["coins"] += coins
-            user["last_daily"] = date_now
-            save_data(callback.message, JSON_USERS, user_data)
-
-            bot.send_message(callback.message.chat.id, f"<i><b>Ты получил ежедневку: {coins} коинов💲!</b></i>", parse_mode="HTML")
-
-    elif callback.data == command[5]:
-        markup = InlineKeyboardMarkup()
-
-        for item in get_shop_items():
-            markup.add(InlineKeyboardButton(text=f"{item['name']} - {item['price']}", callback_data=item["name"]))
-        markup.add(InlineKeyboardButton("Выход🚪", callback_data="Выйти"))
-
-        bot.send_message(callback.message.chat.id, "<i><b>Добро пожаловать в магазин🙌! Тут продаётся:</b></i>", parse_mode="HTML", reply_markup=markup)
-    
-    elif callback.data in return_shop_items():
-        user = user_data[str(callback.from_user.id)]
-        shop_items = return_shop_items()
-
-        if callback.data in shop_items:
-            item_price = shop_items[callback.data]
-
-            if user["coins"] >= item_price and callback.data not in user["inventory"]:
-                user["coins"] -= item_price
-                user["inventory"].append(callback.data)
-                save_data(callback.message, JSON_USERS, user_data)
-
-                if callback.data == "Photo📸" and "Photo📸" not in user["inventory"]:
-                    try:
-                        with open(DOCUMENT_FILES / "photo.jpg", "rb") as photo:
-                            bot.send_photo(
-                                callback.message.chat.id,
-                                photo=photo,
-                                caption="ФОТО за 50 коинов⬆️"
-                            )
-                    except Exception:
-                        bot.send_message(callback.message.chat.id, "<i><b>Произошла ошибка! Файл не найден/некорректный путь.</b></i>", parse_mode="HTML")
-
-                bot.send_message(callback.message.chat.id, f"<i><b>Успешно приобретён {callback.data} за {item_price} коинов(-а)!</b></i>", parse_mode="HTML")
-
-            elif callback.data in user["inventory"]:
-                bot.send_message(callback.message.chat.id, f"<i><b>У тебя этот предмет есть!</b></i>", parse_mode="HTML")
-            else:
-                bot.send_message(callback.message.chat.id, "<i><b>Не хватает коинов!</b></i>", parse_mode="HTML")
-    
-    elif callback.data == command[6]:
+    elif callback.data == command2[0]:
         try:
             with open(DOCUMENT_FILES / "doc.docx", "rb") as docx:
                 bot.send_document(
@@ -257,29 +230,28 @@ def action_for_keyboard(callback):
                 )
         except Exception:
             bot.send_message(callback.message.chat.id, "<i><b>Произошла ошибка! Возможно, что неккоректный путь/файл не существует.</b></i>")
+            logger.error("Неккоректный путь или фалй не существует.")
 
-    elif callback.data == command[7]:
-        bot.send_message(callback.message.chat.id, "<i><b>Напиши на следуйщей строке команду /send_text, свой адрес, адрес получателя и текст получателю(пример:/send_text vasyapupkin2@gmail.com moidrug4@gmail.com Привет, дружище!)</b></i>", parse_mode="HTML")
+    elif callback.data == command2[1]:
+        bot.send_message(callback.message.chat.id, "<i><b>Напиши на следуйщей строке /send_text почта отправителя почта получателя текст. Пример:</b></i>", parse_mode="HTML")
+        bot.send_message(callback.message.chat.id, "```/send_text vasyapupkin2@gmail.com(от кого) moidrug4@gmail.com(кому) Привет, дружище!```", parse_mode="Markdown")
 
-    elif callback.data == command[8]:
-        if action_Element is None:
-            bot.send_message(callback.message.chat.id, f"<i><b>Ещё загружаю элементы...</b></i>", parse_mode="HTML")
+    elif callback.data == command2[2]:
+        bot.send_message(callback.message.chat.id, "<i><b>Функция на стадии разработки🛠️...</b></i>", parse_mode="HTML")
+    
+    elif callback.data == command2[3]:
+        searching = get_weather(WEATHER_KEY)
+
+        bot.send_message(callback.message.chat.id, searching, parse_mode="HTML")
+    
+    elif callback.data == command2[4]:
+        
+        if bells is not None:
+            bot.send_message(callback.message.chat.id, f"<i><b>{bells}</b></i>", parse_mode="HTML")
         else:
-            bot.send_message(callback.message.chat.id, f"<i><b>{'\n'.join(action_Element)}</b></i>", parse_mode="HTML")
+            bot.send_message(callback.message.chat.id, "<i><b>Расписания звонков пока ещё нет!</b></i>", parse_mode="HTML")
 
-    elif callback.data == command[9]:
-        bot.send_message(callback.message.chat.id, "<i><b>Напиши на следуйщей строке /weather название города(например: /weather Moscov)</b></i>", parse_mode="HTML")
-
-    elif callback.data == "Выйти":
-        bot.edit_message_reply_markup(
-            chat_id=callback.message.chat.id,
-            message_id=callback.message.message_id,
-            reply_markup=None
-        )
-
-        bot.delete_message(callback.message.chat.id, callback.message.message_id)
-
-    elif callback.data == command[10]:
+    elif callback.data == main_command[3]:
         bot.edit_message_reply_markup(
                 chat_id=callback.message.chat.id,
                 message_id=callback.message.message_id,
@@ -288,4 +260,4 @@ def action_for_keyboard(callback):
 
         bot.delete_message(callback.message.chat.id, callback.message.message_id)
 
-bot.polling(non_stop=True)
+bot.infinity_polling()
