@@ -84,7 +84,7 @@ def get_command2() -> List[str]:
         "Выход🚪"
     ]
 # проверяем на валидность адрес.
-def valide_url(text : str) -> List[str]:
+def valide_url(text : str) -> str:
     return re.match(r"[a-zA-Z0-9\._%+-]+@[a-zA-Z0-9\.-]+\.(?:com|ru|by)", text)
 # показываем список комманд.
 @bot.message_handler(commands=["help"])
@@ -236,9 +236,13 @@ def action_for_keyboard(callback):
 
     elif callback.data == command2[2]:
         info_site = get_info()[:10]
+
+        if len(info_site) < 1:
+            bot.send_message(callback.message.chat.id, "<i><b></b></i>", parse_mode="HTML")
+        
         parse_info = "\n".join(info_site)
 
-        bot.send_message(callback.message.chat.id, f"<i><b>Информация с школьного сайта:\n{parse_info}</b></i>", parse_mode="HTML")
+        bot.send_message(callback.message.chat.id, f"<i><b>ℹ️Информация с школьного сайта(последние {len(info_site)} заголовков(-а)):\n{parse_info}</b></i>", parse_mode="HTML")
     
     elif callback.data == command2[3]:
         searching = get_weather(WEATHER_KEY)
@@ -250,7 +254,7 @@ def action_for_keyboard(callback):
         if bells is not None:
             bot.send_message(callback.message.chat.id, f"<i><b>{bells}</b></i>", parse_mode="HTML")
         else:
-            bot.send_message(callback.message.chat.id, "<i><b>Расписания звонков пока ещё нет!</b></i>", parse_mode="HTML")
+            bot.send_message(callback.message.chat.id, "<i><b>Расписания звонков пока ещё нет!❌</b></i>", parse_mode="HTML")
 
     elif callback.data == main_command[3]:
         bot.edit_message_reply_markup(
