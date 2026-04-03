@@ -13,7 +13,7 @@ from typing import List
 from dotenv import load_dotenv
 import re
 import logging
-from action_parse import get_element, get_weather
+from action_parse import get_info, get_weather
 
 load_dotenv()
 
@@ -28,15 +28,13 @@ LOG_PATH = BASE_DIR / "logs.log"
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s, [%(levelname)s] %(name)s: %(message)s\n",
+    format="%(asctime)s; [%(levelname)s] %(name)s: %(message)s\n",
     filename=LOG_PATH,
     encoding="utf-8"
 )
 logger = logging.getLogger(__name__)
 
 bot = TeleBot(TOKEN)
-
-action_Element = get_element()
 
 state = {"starting": True}
 # проверяем на существования файла user_send.json и открываем его.
@@ -218,7 +216,7 @@ def action_for_keyboard(callback):
         bot.send_message(callback.message.chat.id, f"<i><b>⌛Время сейчас: {parse_time}\n📆Дата: {parse_date}</b></i>", parse_mode="HTML")
 
     elif callback.data == command1[2]:
-        bot.send_message(callback.message.chat.id, "<i><b>✍️Напиши на следуйщей строке /set возраст город(пример: /set 45 Париж)</b></i>", parse_mode="HTML")
+        bot.send_message(callback.message.chat.id, "<i><b>✍️Напиши на следующей строке /set возраст город(пример: /set 45 Париж)</b></i>", parse_mode="HTML")
 
     elif callback.data == command2[0]:
         try:
@@ -237,7 +235,10 @@ def action_for_keyboard(callback):
         bot.send_message(callback.message.chat.id, "```/send_text vasyapupkin2@gmail.com(от кого) moidrug4@gmail.com(кому) Привет, дружище!```", parse_mode="Markdown")
 
     elif callback.data == command2[2]:
-        bot.send_message(callback.message.chat.id, "<i><b>Функция на стадии разработки🛠️...</b></i>", parse_mode="HTML")
+        info_site = get_info()[:10]
+        parse_info = "\n".join(info_site)
+
+        bot.send_message(callback.message.chat.id, f"<i><b>Информация с школьного сайта:\n{parse_info}</b></i>", parse_mode="HTML")
     
     elif callback.data == command2[3]:
         searching = get_weather(WEATHER_KEY)
@@ -260,4 +261,4 @@ def action_for_keyboard(callback):
 
         bot.delete_message(callback.message.chat.id, callback.message.message_id)
 
-bot.infinity_polling()
+bot.infinity_polling(skip_pending=True)
