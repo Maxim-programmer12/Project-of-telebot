@@ -63,7 +63,7 @@ def get_main_command() -> List[str]:
         "Личные данные💾",
         "Информацияℹ️",
         "Доп. функции✨",
-        "Выход🚪"
+        "Скрыть🚪"
     ]
 # список комманд номер 1.
 def get_command1() -> List[str]:
@@ -71,7 +71,7 @@ def get_command1() -> List[str]:
             "Профиль👤",
             "Время⌛",
             "Изменить возраст👴 и город🌃",
-            "Выход🚪"
+            "Скрыть🚪"
             ]
 # список комманд номер 2.
 def get_command2() -> List[str]:
@@ -81,7 +81,7 @@ def get_command2() -> List[str]:
         "Получить информацию с сайтаℹ️",
         "Узнать погоду☔☀️",
         "Звонки🔔",
-        "Выход🚪"
+        "Скрыть🚪"
     ]
 # проверяем на валидность адрес.
 def valide_url(text : str) -> str:
@@ -93,7 +93,7 @@ def help(message : Message):
     command = get_main_command()
 
     for s in command:
-        markup.add(InlineKeyboardButton(s, callback_data=s))
+        markup.add(InlineKeyboardButton(s, callback_data=s, style="success"))
     bot.send_message(message.chat.id, "<i><b>📋Список команд:</b></i>", parse_mode="HTML", reply_markup=markup)
 # изменение возраста и города.
 @bot.message_handler(commands=["set"])
@@ -176,14 +176,14 @@ def action_for_keyboard(callback):
         markup = InlineKeyboardMarkup()
 
         for s in command1:
-            markup.add(InlineKeyboardButton(text=s, callback_data=s))
+            markup.add(InlineKeyboardButton(text=s, callback_data=s, style="danger"))
         bot.send_message(callback.message.chat.id, "<i><b>---Функции по личным данным💾---</b></i>", parse_mode="HTML", reply_markup=markup)
 
     elif callback.data == main_command[1]:
         markup = InlineKeyboardMarkup()
 
         for s in command2:
-            markup.add(InlineKeyboardButton(text=s, callback_data=s))
+            markup.add(InlineKeyboardButton(text=s, callback_data=s, style="primary"))
         bot.send_message(callback.message.chat.id, "<i><b>---Информационные источникиℹ️---</b></i>", parse_mode="HTML", reply_markup=markup)
 
     elif callback.data == main_command[2]:
