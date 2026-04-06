@@ -1,5 +1,10 @@
 from typing import List
-
+from pathlib import Path
+# константы.
+BASE_DIR = Path(__file__).resolve().parent
+IMG_FILE = BASE_DIR / "card_captcha.png"
+FONT_FILE = BASE_DIR / "Roboto-VariableFont_wdth,wght.ttf"
+# Информация с сайта СШ №1 г. Пружаны.
 def get_info() -> List[str]:
     import requests
     from bs4 import BeautifulSoup
@@ -16,7 +21,7 @@ def get_info() -> List[str]:
     ps = div.find_all("p")
 
     return [p.text for p in ps]
-
+# погода в городе Пружаны.
 def get_weather(weather_api_key : str) -> str:
     import requests
 
@@ -42,8 +47,62 @@ def get_weather(weather_api_key : str) -> str:
         f'<i><b>Влажность: {hum}%\n</b></i>'
         f'<i><b>Погодное условие: {desc.capitalize()}</b></i>'
     )
+# отрисовка искажения текста.
+def wave_distortion(img, amplitude=5, wavelength=30):
+    from PIL import Image
+    import math
+
+    w, h = img.size
+
+    new = Image.new("RGB", (w, h), "white")
+
+    pixels_new = new.load()
+    pixels_old = img.load()
+
+    for x in range(w):
+        for y in range(h):
+            offset = int(amplitude * math.sin(2 * math.pi * y / wavelength))
+            new_x = x + offset
+
+            if 0 <= new_x < w:
+                pixels_new[new_x, y] = pixels_old[x, y]
+
+    return new
+# генерация карточки для CAPTCHA.
+def generate_card(text : str):
+    from PIL import Image, ImageDraw, ImageFont
+    from random import randint
+
+    bg = (
+        randint(0, 255),
+        randint(0, 255),
+        randint(0, 255)
+    )
+
+    img = Image.new("RGB", (450, 300), bg)
+    draw = ImageDraw.Draw(img)
+    font = ImageFont.truetype(FONT_FILE, 100)
+
+    bbox = draw.textbbox((0, 0), text, font)
+    w = bbox[2] - bbox[0]
+    h = bbox[3] - bbox[1]
+
+    x = (img.width - w) // 2
+    y = (img.height - h) // 2
+
+    draw.text((x, y), text, font=font, fill="black")
+
+    for _ in range(300):
+        x = randint(0, img.width)
+        y = randint(0, img.height)
+
+        draw.point((x, y), fill=(randint(0, 255) * 3))
+
+    img = wave_distortion(img)
+    img.save(IMG_FILE)
 
 if __name__ == "__main__":
+    generate_card("56893")
+    """list_p = get_info()
+    print(list_p)"""
     pass
-    list_p = get_info()
-    print(list_p)
