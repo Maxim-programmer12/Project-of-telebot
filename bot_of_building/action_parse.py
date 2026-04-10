@@ -2,7 +2,6 @@ from typing import List
 from pathlib import Path
 # константы.
 BASE_DIR = Path(__file__).resolve().parent
-IMG_FILE = BASE_DIR / "card_captcha.png"
 FONT_FILE = BASE_DIR / "Roboto-VariableFont_wdth,wght.ttf"
 # Информация с сайта СШ №1 г. Пружаны.
 def get_info() -> List[str]:
@@ -69,7 +68,7 @@ def wave_distortion(img, amplitude=5, wavelength=30):
 
     return new
 # генерация карточки для CAPTCHA.
-def generate_card(text : str):
+def generate_card(text : str, message):
     from PIL import Image, ImageDraw, ImageFont
     from random import randint
 
@@ -79,7 +78,7 @@ def generate_card(text : str):
         randint(0, 255)
     )
 
-    img = Image.new("RGB", (450, 300), bg)
+    img = Image.new("RGB", (400, 250), bg)
     draw = ImageDraw.Draw(img)
     font = ImageFont.truetype(FONT_FILE, 100)
 
@@ -99,10 +98,10 @@ def generate_card(text : str):
         draw.point((x, y), fill=(randint(0, 255) * 3))
 
     img = wave_distortion(img)
-    img.save(IMG_FILE)
+    img.save(BASE_DIR / f"card_captcha{message.from_user.id}.png")
 
 if __name__ == "__main__":
-    generate_card("56893")
+    # generate_card("87653", 5)
     """list_p = get_info()
     print(list_p)"""
     pass

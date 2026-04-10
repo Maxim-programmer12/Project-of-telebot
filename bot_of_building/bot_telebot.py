@@ -13,7 +13,8 @@ from typing import List
 from dotenv import load_dotenv
 import re
 import logging
-from action_parse import get_info, get_weather
+from action_parse import get_info, get_weather, generate_card
+from random import randint
 
 load_dotenv()
 
@@ -89,12 +90,13 @@ def valide_url(text : str) -> str:
 # показываем список комманд.
 @bot.message_handler(commands=["help"])
 def help(message : Message):
-    markup = InlineKeyboardMarkup()
-    command = get_main_command()
+    if db.get_info_captcha(message.from_user.id)[0] != 1:
+        markup = InlineKeyboardMarkup()
+        command = get_main_command()
 
-    for s in command:
-        markup.add(InlineKeyboardButton(s, callback_data=s, style="success"))
-    bot.send_message(message.chat.id, "<i><b>📋Список команд:</b></i>", parse_mode="HTML", reply_markup=markup)
+        for s in command:
+            markup.add(InlineKeyboardButton(s, callback_data=s, style="success"))
+        bot.send_message(message.chat.id, "<i><b>📋Список команд:</b></i>", parse_mode="HTML", reply_markup=markup)
 # изменение возраста и города.
 @bot.message_handler(commands=["set"])
 def set(message: Message):
@@ -148,6 +150,7 @@ def delete_links(message : Message):
 # хендлер при входе пользователя.
 @bot.message_handler()
 def start(message : Message):
+
     if state["starting"]:
         if not os.path.exists(DB_PATH):
             db.create_table()
@@ -155,16 +158,34 @@ def start(message : Message):
         bot.send_message(message.chat.id, f"<i><b>Добро пожаловать {message.from_user.first_name}🙌! Я бот, написанный на telebot\n</b></i>", parse_mode="HTML")
         state["starting"] = False
 
-        if message.from_user.id in db.get_users_id():
-            bot.send_message(message.chat.id, "<i><b>Вы вошли в профиль! Чтобы узнать список команд/повзаимодействовать со мной, нажми на /help</b></i>", parse_mode="HTML")
-            return
-        
+        r_numb = randint(11111, 99999)
+
+        generate_card(str(r_numb), message)
+
         reg_date = datetime.datetime.now().date()
         parse_reg_date = datetime.datetime.strftime(reg_date, "%d.%m.%Y")
 
         db.insert_user(message.from_user.first_name, str(parse_reg_date), message.from_user.id)
-        bot.send_message(message.chat.id, "<i><b>Я создал твой профиль по умолчанию, где есть только имя.\nЧтобы изменить профиль по умолчанию, нажми /help, после нажми на Изменить возраст и город, и там будет следуйщий шаг.</b></i>", parse_mode="HTML")
-            
+        db.set_state_captcha(message.from_user.id, r_numb, 1)
+        
+        with open(BASE_DIR / f"card_captcha{message.from_user.id}.png", "rb") as captcha:
+            bot.send_photo(message.chat.id, 
+                           photo=captcha, 
+                           caption="<i><b>CAPTCHA-проверка:\nнапиши число, которое видешь на изображении.</b></i>", 
+                           parse_mode="HTML")
+    
+    if db.get_info_captcha(message.from_user.id)[0] == 1:
+        text = message.text
+
+        if text == str(db.get_info_captcha(message.from_user.id)[1]):
+            bot.send_message(message.chat.id, "<i><b>Правильно! Доступ разрешён✅.</b></i>", parse_mode="HTML")
+
+            db.set_state_captcha(message.from_user.id, 0, 0)
+
+            if message.from_user.id in db.get_users_id():
+                bot.send_message(message.chat.id, "<i><b>Вы вошли в профиль! Чтобы узнать список команд/повзаимодействовать со мной, нажми на /help</b></i>", parse_mode="HTML")
+                return
+
 # обработчик событий.
 @bot.callback_query_handler()
 def action_for_keyboard(callback):
