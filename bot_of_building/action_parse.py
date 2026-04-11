@@ -1,5 +1,6 @@
 from typing import List
 from pathlib import Path
+import re
 # константы.
 BASE_DIR = Path(__file__).resolve().parent
 FONT_FILE = BASE_DIR / "Roboto-VariableFont_wdth,wght.ttf"
@@ -100,8 +101,12 @@ def generate_card(text : str, message):
     img = wave_distortion(img)
     img.save(BASE_DIR / f"card_captcha{message.from_user.id}.png")
 
+# проверяем на валидность адрес.
+def valide_url(text : str) -> str:
+    return re.match(r"[a-zA-Z0-9\._%+-]+@[a-zA-Z0-9\.-]+\.(?:com|ru|by)", text)
+
 if __name__ == "__main__":
     # generate_card("87653", 5)
-    """list_p = get_info()
-    print(list_p)"""
+    # list_p = get_info()
+    # print(list_p)
     pass
