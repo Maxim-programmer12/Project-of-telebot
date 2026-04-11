@@ -1,4 +1,3 @@
-from telebot import TeleBot
 from telebot.types import (
                            Message,
                            InlineKeyboardMarkup,
@@ -9,24 +8,31 @@ from pathlib import Path
 import datetime
 import json
 import db
-from typing import List
+from typing import List, Dict, Callable
 from dotenv import load_dotenv
-import re
 import logging
-from action_parse import get_info, get_weather, generate_card
+from action_parse import generate_card, valide_url
 from random import randint
-
+from commands import (
+    get_user_info,
+    get_date,
+    get_info_site,
+    send_bells,
+    send_doc,
+    send_mail,
+    send_weather,
+    set_info,
+    delete_keyboard
+)
+from object_bot import object_bot
+# загружаем данные из .env .
 load_dotenv()
-
-TOKEN = os.getenv("TOKEN")
-WEATHER_KEY = os.getenv("WEATHERKEY")
+# константы.
 BASE_DIR = Path(__file__).resolve().parent
 JSON_SEND = BASE_DIR / "user_send.json"
-DOCUMENT_FILES = BASE_DIR / "docs"
-BELLS = DOCUMENT_FILES / "zvonki.txt"
 DB_PATH = BASE_DIR / "db.db"
 LOG_PATH = BASE_DIR / "logs.log"
-
+# логирование.
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s; [%(levelname)s] %(name)s: %(message)s\n",
@@ -34,9 +40,9 @@ logging.basicConfig(
     encoding="utf-8"
 )
 logger = logging.getLogger(__name__)
-
-bot = TeleBot(TOKEN)
-
+# объект TeleBot.
+bot = object_bot()
+# статусы.
 state = {"starting": True}
 # проверяем на существования файла user_send.json и открываем его.
 if os.path.exists(JSON_SEND):
@@ -44,12 +50,6 @@ if os.path.exists(JSON_SEND):
         send_data = json.load(s_file)
 else:
     send_data = dict()
-# открываем файл со звонками.
-if os.path.exists(BELLS):
-    with open(BELLS, "r", encoding="utf-8") as be_file:
-        bells = be_file.read()
-else:
-    bells = None
 # сохраняем данные в JSON файл.
 def save_data(message, name_json, name_object):
     with open(name_json, "w", encoding="utf-8") as file:
@@ -84,9 +84,44 @@ def get_command2() -> List[str]:
         "Звонки🔔",
         "Скрыть🚪"
     ]
-# проверяем на валидность адрес.
-def valide_url(text : str) -> str:
-    return re.match(r"[a-zA-Z0-9\._%+-]+@[a-zA-Z0-9\.-]+\.(?:com|ru|by)", text)
+# создание 1-ой клавиатуры.
+def make_keyboard1(callback):
+    markup = InlineKeyboardMarkup()
+
+    for s in get_command1():
+        markup.add(InlineKeyboardButton(text=s, callback_data=s, style="danger"))
+    bot.send_message(callback.message.chat.id, "<i><b>---Функции по личным данным💾---</b></i>", parse_mode="HTML", reply_markup=markup)
+# создание 2-ой клавиатуры.
+def make_keyboard2(callback):
+    markup = InlineKeyboardMarkup()
+
+    for s in get_command2():
+        markup.add(InlineKeyboardButton(text=s, callback_data=s, style="primary"))
+    bot.send_message(callback.message.chat.id, "<i><b>---Информационные источникиℹ️---</b></i>", parse_mode="HTML", reply_markup=markup)
+# создание 3-ей клавиатуры.
+def make_keyboard3(callback):
+    bot.send_message(callback.message.chat.id, "<i><b>Функция на стадии разработки🛠️...</b></i>", parse_mode="HTML")
+# все комманды и их функции.
+def all_commands() -> Dict[str, Callable]:
+    return {
+        # Главное меню
+        "Личные данные💾": make_keyboard1,
+        "Информацияℹ️": make_keyboard2,
+        "Доп. функции✨": make_keyboard3,
+        "Скрыть🚪": delete_keyboard,
+
+        # Команды №1
+        "Профиль👤": get_user_info,
+        "Время⌛": get_date,
+        "Изменить возраст👴 и город🌃": set_info,
+
+        # Команды №2
+        "Информация в DOCX-файле📋": send_doc,
+        "Отправить сообщение на адрес📩": send_mail,
+        "Получить информацию с сайтаℹ️": get_info_site,
+        "Узнать погоду☔☀️": send_weather,
+        "Звонки🔔": send_bells,
+    }
 # показываем список комманд.
 @bot.message_handler(commands=["help"])
 def help(message : Message):
@@ -185,105 +220,14 @@ def start(message : Message):
             if message.from_user.id in db.get_users_id():
                 bot.send_message(message.chat.id, "<i><b>Вы вошли в профиль! Чтобы узнать список команд/повзаимодействовать со мной, нажми на /help</b></i>", parse_mode="HTML")
                 return
-
 # обработчик событий.
 @bot.callback_query_handler()
 def action_for_keyboard(callback):
-    main_command = get_main_command()
-    command1 = get_command1()
-    command2 = get_command2()
+    handle = all_commands().get(callback.data)
 
-    if callback.data == main_command[0]:
-        markup = InlineKeyboardMarkup()
-
-        for s in command1:
-            markup.add(InlineKeyboardButton(text=s, callback_data=s, style="danger"))
-        bot.send_message(callback.message.chat.id, "<i><b>---Функции по личным данным💾---</b></i>", parse_mode="HTML", reply_markup=markup)
-
-    elif callback.data == main_command[1]:
-        markup = InlineKeyboardMarkup()
-
-        for s in command2:
-            markup.add(InlineKeyboardButton(text=s, callback_data=s, style="primary"))
-        bot.send_message(callback.message.chat.id, "<i><b>---Информационные источникиℹ️---</b></i>", parse_mode="HTML", reply_markup=markup)
-
-    elif callback.data == main_command[2]:
-        bot.send_message(callback.message.chat.id, "<i><b>Функция на стадии разработки🛠️...</b></i>", parse_mode="HTML")
-
-    elif callback.data == command1[0]:
-        try:
-            list_info = db.get_all_user_info(callback.from_user.id)
-
-        except Exception:
-            bot.send_message(callback.message.chat.id, "<i><b>У тебя нет данных!</b></i>", parse_mode="HTML")
-            logger.error(f"У пользователя {callback.from_user.first_name} нет данных.")
-        
-        age = list_info[1]
-        city = list_info[2]
-        reg_date = list_info[3]
-
-        bot.send_message(callback.message.chat.id, "<i><b>Твой профиль📇</b></i>\n"
-                         f"<i><b>📛Имя: {callback.from_user.first_name}</b></i>\n"
-                         f"<i><b>👴Возраст: {age}</b></i>\n"
-                         f"<i><b>🌃Город: {city}</b></i>\n"
-                         f"<i><b>🗓️Дата регестрации: {reg_date}</b></i>",
-                         parse_mode="HTML"
-                         )
-
-    elif callback.data == command1[1]:
-        now = datetime.datetime.now()
-        parse_time = datetime.datetime.strftime(now, "%H:%M:%S")
-        parse_date = datetime.datetime.strftime(now, "%d.%m.%Y")
-        bot.send_message(callback.message.chat.id, f"<i><b>⌛Время сейчас: {parse_time}\n📆Дата: {parse_date}</b></i>", parse_mode="HTML")
-
-    elif callback.data == command1[2]:
-        bot.send_message(callback.message.chat.id, "<i><b>✍️Напиши на следующей строке /set возраст город(пример: /set 45 Париж)</b></i>", parse_mode="HTML")
-
-    elif callback.data == command2[0]:
-        try:
-            with open(DOCUMENT_FILES / "doc.docx", "rb") as docx:
-                bot.send_document(
-                    callback.message.chat.id,
-                    document=docx,
-                    caption="DOCX файл⬆️"
-                )
-        except Exception:
-            bot.send_message(callback.message.chat.id, "<i><b>Произошла ошибка! Возможно, что неккоректный путь/файл не существует.</b></i>")
-            logger.error("Неккоректный путь или фалй не существует.")
-
-    elif callback.data == command2[1]:
-        bot.send_message(callback.message.chat.id, "<i><b>Напиши на следуйщей строке /send_text почта отправителя почта получателя текст. Пример:</b></i>", parse_mode="HTML")
-        bot.send_message(callback.message.chat.id, "```/send_text vasyapupkin2@gmail.com(от кого) moidrug4@gmail.com(кому) Привет, дружище!```", parse_mode="Markdown")
-
-    elif callback.data == command2[2]:
-        info_site = get_info()[:10]
-
-        if len(info_site) < 1:
-            bot.send_message(callback.message.chat.id, "<i><b></b></i>", parse_mode="HTML")
-        
-        parse_info = "\n".join(info_site)
-
-        bot.send_message(callback.message.chat.id, f"<i><b>ℹ️Информация с школьного сайта(последние {len(info_site)} заголовков(-а)):\n{parse_info}</b></i>", parse_mode="HTML")
-    
-    elif callback.data == command2[3]:
-        searching = get_weather(WEATHER_KEY)
-
-        bot.send_message(callback.message.chat.id, searching, parse_mode="HTML")
-    
-    elif callback.data == command2[4]:
-        
-        if bells is not None:
-            bot.send_message(callback.message.chat.id, f"<i><b>{bells}</b></i>", parse_mode="HTML")
-        else:
-            bot.send_message(callback.message.chat.id, "<i><b>Расписания звонков пока ещё нет!❌</b></i>", parse_mode="HTML")
-
-    elif callback.data == main_command[3]:
-        bot.edit_message_reply_markup(
-                chat_id=callback.message.chat.id,
-                message_id=callback.message.message_id,
-                reply_markup=None
-                )
-
-        bot.delete_message(callback.message.chat.id, callback.message.message_id)
+    if handle:
+        handle(callback)
+    else:
+        logger.error(f"{callback.from_user.first_name} нажал несуществующую кнопку.")
 
 bot.infinity_polling(skip_pending=True)
