@@ -178,7 +178,6 @@ def send_text(message : Message):
 @bot.message_handler(chat_types=["private"], func=lambda m: m.entities is not None)
 def delete_links(message : Message):
     for entity in message.entities:
-
         if entity.type in ("url", "text_link"):
             bot.delete_message(message.chat.id, message.message_id)
             break
@@ -195,7 +194,7 @@ def start(message : Message):
 
         r_numb = randint(11111, 99999)
 
-        generate_card(str(r_numb), message)
+        photo_captcha = generate_card(str(r_numb), message)
 
         reg_date = datetime.datetime.now().date()
         parse_reg_date = datetime.datetime.strftime(reg_date, "%d.%m.%Y")
@@ -203,11 +202,10 @@ def start(message : Message):
         db.insert_user(message.from_user.first_name, str(parse_reg_date), message.from_user.id)
         db.set_state_captcha(message.from_user.id, r_numb, 1)
         
-        with open(BASE_DIR / f"card_captcha{message.from_user.id}.png", "rb") as captcha:
-            bot.send_photo(message.chat.id, 
-                           photo=captcha, 
-                           caption="<i><b>CAPTCHA-проверка:\nнапиши число, которое видешь на изображении.</b></i>", 
-                           parse_mode="HTML")
+        bot.send_photo(message.chat.id, 
+                        photo=photo_captcha, 
+                        caption="<i><b>CAPTCHA-проверка:\nнапиши число, которое видешь на изображении.</b></i>", 
+                        parse_mode="HTML")
     
     if db.get_info_captcha(message.from_user.id)[0] == 1:
         text = message.text
